@@ -30,8 +30,7 @@ yarn-error.*
 .env*.local
 .env
 
-# Firebase credentials (NEVER commit these)
-GoogleService-Info.plist
+# Android Firebase credentials (iOS is OK with bundle ID restriction)
 google-services.json
 
 # typescript

@@ -22,7 +22,8 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "身分証明書と顔写真の撮影に使用します",
-        "NSPhotoLibraryUsageDescription": "身分証明書の画像を選択するために使用します"
+        "NSPhotoLibraryUsageDescription": "身分証明書の画像を選択するために使用します",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
