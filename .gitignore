@@ -38,3 +38,5 @@ google-services.json
 
 # testing
 coverage/
+
+.expo
