@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "デジタル民主主義",
+    "slug": "opinion-exchange-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "opinionexchange",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "jp.tom.opinionexchange",
+      "usesAppleSignIn": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSCameraUsageDescription": "身分証明書と顔写真の撮影に使用します",
+        "NSPhotoLibraryUsageDescription": "身分証明書の画像を選択するために使用します"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.yourcompany.opinionexchange",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-apple-authentication",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "身分証明書と顔写真の撮影に使用します"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "身分証明書の画像を選択するために使用します"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "44c465b2-2c02-4779-ba61-a9a216c82cda"
+      }
+    },
+    "owner": "mymeey"
+  }
+}
