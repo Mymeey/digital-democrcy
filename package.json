@@ -34,7 +34,6 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@types/react": "~19.1.10",
-    "expo-module-scripts": "^55.0.2",
     "typescript": "^5.3.0"
   },
   "private": true
