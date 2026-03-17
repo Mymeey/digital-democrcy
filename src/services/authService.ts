@@ -10,11 +10,6 @@ import {
 } from '../config/firebase';
 import { User } from '../types';
 
-// ID生成関数
-const generateId = (): string => {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2, 15);
-};
-
 // Apple Sign-In/Firebase連携で必要なnonce
 const generateNonce = (): string => {
   const bytes = Crypto.getRandomBytes(16);
@@ -23,28 +18,10 @@ const generateNonce = (): string => {
     .join('');
 };
 
-// モックユーザー（Expo Goテスト用）
-const MOCK_USER: User = {
-  id: 'mock_member_001',
-  email: 'member@example.com',
-  name: 'テストユーザー',
-  authProvider: 'google',
-  role: 'member',
-  status: 'approved',
-  createdAt: Date.now(),
-};
-
-// Expo Go用モックサインイン
-export const signInWithMock = async (): Promise<User> => {
-  console.log('Mock sign-in for Expo Go');
-  return MOCK_USER;
-};
-
 // Appleでサインイン
 export const signInWithApple = async (): Promise<User | null> => {
-  // Expo Goではモック認証を使用
   if (isExpoGo) {
-    return signInWithMock();
+    throw new Error('Apple sign-in is not supported in Expo Go');
   }
 
   if (!isFirebaseConfigured) {
@@ -118,9 +95,8 @@ export const signInWithApple = async (): Promise<User | null> => {
 
 // Google IDトークンでサインイン（expo-auth-sessionから呼ばれる）
 export const signInWithGoogleIdToken = async (idToken: string): Promise<User | null> => {
-  // Expo Goではモック認証を使用
   if (isExpoGo) {
-    return signInWithMock();
+    throw new Error('Google sign-in is not supported in Expo Go');
   }
 
   if (!isFirebaseConfigured) {

@@ -11,7 +11,7 @@ import { requestNotificationPermissions } from './src/services/notificationServi
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const { setUser, loadSettings, loadOpinions, loadOrganizations } = useStore();
+  const { setUser, loadSettings } = useStore();
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -28,9 +28,6 @@ export default function App() {
         // Expo Goでは認証状態監視をスキップ
         if (isExpoGo) {
           console.log('Expo Go mode - skipping Firebase Auth listener');
-          // モック組織データとモック意見データをロード
-          await loadOrganizations();
-          await loadOpinions();
           setIsLoading(false);
           return;
         }

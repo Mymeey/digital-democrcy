@@ -12,7 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import { signInWithApple, signInWithGoogleIdToken, signInWithMock } from '../services/authService';
+import { signInWithApple, signInWithGoogleIdToken } from '../services/authService';
 import { useStore } from '../store/useStore';
 import { isExpoGo, isFirebaseConfigured, firebaseConfigMissingKeys } from '../config/firebase';
 
@@ -144,19 +144,6 @@ export default function LoginScreen() {
     }
   };
 
-  // Expo Go用テストログイン
-  const handleDevLogin = async () => {
-    setIsLoading(true);
-    try {
-      const user = await signInWithMock();
-      setUser(user);
-    } catch (error) {
-      Alert.alert('エラー', 'ログインに失敗しました');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   if (isLoading) {
     return (
       <View style={styles.container}>
@@ -176,14 +163,10 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.buttonContainer}>
-        {/* Expo Go用のテストログイン */}
         {isExpoGo && (
-          <View style={styles.devSection}>
-            <Text style={styles.devSectionTitle}>🧪 テスト用</Text>
-            <TouchableOpacity style={styles.devButton} onPress={handleDevLogin}>
-              <Text style={styles.devButtonText}>サインイン</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.expoGoNotice}>
+            Expo Goでは認証できません。開発ビルドまたは本番アプリでサインインしてください。
+          </Text>
         )}
 
         {/* 本番用の認証ボタン（Expo Go以外で表示） */}
@@ -268,27 +251,11 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '600',
   },
-  devSection: {
-    gap: 10,
-  },
-  devSectionTitle: {
+  expoGoNotice: {
     fontSize: 13,
-    color: '#888',
+    color: '#666',
     textAlign: 'center',
-    marginBottom: 2,
-    fontWeight: '600',
-  },
-  devButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  devButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
+    lineHeight: 20,
   },
   loadingText: {
     marginTop: 16,

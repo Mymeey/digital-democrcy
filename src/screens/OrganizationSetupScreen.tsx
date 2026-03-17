@@ -27,7 +27,6 @@ export default function OrganizationSetupScreen() {
   const [orgName, setOrgName] = useState('');
   const [orgCode, setOrgCode] = useState('');
   const [fullName, setFullName] = useState(user?.realName || '');
-  const [joinAsDemoAdmin, setJoinAsDemoAdmin] = useState(false);
 
   useEffect(() => {
     loadOrganizations();
@@ -66,14 +65,12 @@ export default function OrganizationSetupScreen() {
     }
 
     const normalizedCode = orgCode.trim().toUpperCase();
-    const success = await joinOrganization(normalizedCode, fullName.trim(), joinAsDemoAdmin);
+    const success = await joinOrganization(normalizedCode, fullName.trim());
     
     if (success) {
       Alert.alert(
         '参加完了',
-        joinAsDemoAdmin && normalizedCode === 'REVIEW01'
-          ? '審査用デモ組織に管理者として参加しました。管理タブから審議・閾値調整などを確認できます。'
-          : '組織に参加しました。ホーム画面をご利用いただけます。',
+        '組織に参加しました。ホーム画面をご利用いただけます。',
         [{ text: 'OK' }]
       );
     } else {
@@ -253,17 +250,6 @@ export default function OrganizationSetupScreen() {
             <Text style={styles.inputHint}>
               組織の管理者から共有された8文字のコードを入力してください
             </Text>
-
-            {orgCode.trim().toUpperCase() === 'REVIEW01' && (
-              <TouchableOpacity
-                style={[styles.demoRoleButton, joinAsDemoAdmin && styles.demoRoleButtonActive]}
-                onPress={() => setJoinAsDemoAdmin((v) => !v)}
-              >
-                <Text style={[styles.demoRoleButtonText, joinAsDemoAdmin && styles.demoRoleButtonTextActive]}>
-                  {joinAsDemoAdmin ? '管理者デモ参加: ON' : '管理者デモ参加: OFF（メンバー）'}
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           <View style={styles.noteBox}>
@@ -415,28 +401,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 8,
-  },
-  demoRoleButton: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    backgroundColor: '#F4F7FF',
-    borderWidth: 1,
-    borderColor: '#D6E0F5',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  demoRoleButtonActive: {
-    backgroundColor: '#0A4FD9',
-    borderColor: '#0A4FD9',
-  },
-  demoRoleButtonText: {
-    fontSize: 12,
-    color: '#33508A',
-    fontWeight: '600',
-  },
-  demoRoleButtonTextActive: {
-    color: '#fff',
   },
   noteBox: {
     backgroundColor: '#F0F8FF',
