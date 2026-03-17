@@ -12,10 +12,9 @@ import { useNavigation } from '@react-navigation/native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-auth-session';
 import { signInWithApple, signInWithGoogleIdToken, signInWithMock } from '../services/authService';
 import { useStore } from '../store/useStore';
-import { isExpoGo } from '../config/firebase';
+import { isExpoGo, isFirebaseConfigured, firebaseConfigMissingKeys } from '../config/firebase';
 
 // Required for Google Auth session
 WebBrowser.maybeCompleteAuthSession();
@@ -25,29 +24,64 @@ const PRIMARY_COLOR = '#007AFF';
 
 export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
   const setUser = useStore((state) => state.setUser);
   const navigation = useNavigation<any>();
 
-  // Google Auth Request with proper redirect URI
-  const redirectUri = makeRedirectUri({
-    scheme: 'opinionexchange',
-    path: 'auth',
+  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const isGoogleConfigured = Boolean(googleIosClientId || googleWebClientId);
+  const isAuthConfigured = isFirebaseConfigured && isGoogleConfigured;
+
+  const getFriendlyAuthError = (error: any): string => {
+    const code = error?.code || error?.message || '';
+
+    if (!isFirebaseConfigured) {
+      return `Firebase設定が不足しています: ${firebaseConfigMissingKeys.join(', ')}`;
+    }
+    if (!isGoogleConfigured) {
+      return 'Googleログイン設定が不足しています（EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID / EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID）。';
+    }
+    if (String(code).includes('auth/invalid-credential')) {
+      return '認証設定に不一致があります。Google/Apple/Firebaseの連携設定をご確認ください。';
+    }
+    if (String(code).includes('auth/network-request-failed')) {
+      return 'ネットワークエラーが発生しました。通信環境をご確認のうえ再度お試しください。';
+    }
+    return 'サインインに失敗しました。時間をおいて再度お試しください。';
+  };
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    iosClientId: googleIosClientId || 'dummy',
+    webClientId: googleWebClientId || 'dummy',
+    scopes: ['openid', 'profile', 'email'],
   });
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: '405652056926-fqaklbis1r8h5evflnvjvv6pa4tn1m00.apps.googleusercontent.com',
-    webClientId: '405652056926-0akpa0q8fivko7epm7hrlgblgpb94086.apps.googleusercontent.com',
-    clientId: '405652056926-0akpa0q8fivko7epm7hrlgblgpb94086.apps.googleusercontent.com',
-    redirectUri,
-  });
+  useEffect(() => {
+    const checkAvailability = async () => {
+      if (Platform.OS !== 'ios') return;
+      const available = await AppleAuthentication.isAvailableAsync();
+      setIsAppleAvailable(available);
+    };
+    checkAvailability();
+  }, []);
 
   // Handle Google Sign-In response
   useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      if (id_token) {
-        handleGoogleToken(id_token);
+    if (!response) return;
+
+    if (response.type === 'success') {
+      const idToken = response.params?.id_token || response.authentication?.idToken;
+      if (!idToken) {
+        Alert.alert('エラー', 'Google認証トークンを取得できませんでした');
+        return;
       }
+      handleGoogleToken(idToken);
+      return;
+    }
+
+    if (response.type === 'error') {
+      Alert.alert('エラー', 'Google認証に失敗しました。設定をご確認ください。');
     }
   }, [response]);
 
@@ -59,7 +93,7 @@ export default function LoginScreen() {
         setUser(user);
       }
     } catch (error: any) {
-      Alert.alert('エラー', 'Googleでのサインインに失敗しました');
+      Alert.alert('エラー', getFriendlyAuthError(error));
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -67,6 +101,11 @@ export default function LoginScreen() {
   };
 
   const handleAppleSignIn = async () => {
+    if (!isFirebaseConfigured) {
+      Alert.alert('設定エラー', `Firebase設定が不足しています: ${firebaseConfigMissingKeys.join(', ')}`);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const user = await signInWithApple();
@@ -74,7 +113,7 @@ export default function LoginScreen() {
         setUser(user);
       }
     } catch (error: any) {
-      Alert.alert('エラー', 'Appleでのサインインに失敗しました');
+      Alert.alert('エラー', getFriendlyAuthError(error));
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -82,14 +121,26 @@ export default function LoginScreen() {
   };
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
     try {
-      await promptAsync();
+      if (!isAuthConfigured) {
+        Alert.alert(
+          '設定エラー',
+          !isFirebaseConfigured
+            ? `Firebase設定が不足しています: ${firebaseConfigMissingKeys.join(', ')}`
+            : 'Googleログイン設定が不足しています（EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID / EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID）。'
+        );
+        return;
+      }
+      if (!request) {
+        Alert.alert('エラー', 'Google認証の初期化中です。少し待ってから再度お試しください。');
+        return;
+      }
+      await promptAsync({
+        showInRecents: true,
+      });
     } catch (error: any) {
-      Alert.alert('エラー', 'Googleでのサインインに失敗しました');
+      Alert.alert('エラー', getFriendlyAuthError(error));
       console.error(error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -127,13 +178,16 @@ export default function LoginScreen() {
       <View style={styles.buttonContainer}>
         {/* Expo Go用のテストログイン */}
         {isExpoGo && (
-          <TouchableOpacity style={styles.devButton} onPress={handleDevLogin}>
-            <Text style={styles.devButtonText}>🧪 テストアカウントでログイン</Text>
-          </TouchableOpacity>
+          <View style={styles.devSection}>
+            <Text style={styles.devSectionTitle}>🧪 テスト用</Text>
+            <TouchableOpacity style={styles.devButton} onPress={handleDevLogin}>
+              <Text style={styles.devButtonText}>サインイン</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* 本番用の認証ボタン（Expo Go以外で表示） */}
-        {!isExpoGo && Platform.OS === 'ios' && (
+        {!isExpoGo && isAppleAvailable && (
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
             buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
@@ -212,6 +266,16 @@ const styles = StyleSheet.create({
   googleButtonText: {
     fontSize: 16,
     color: '#333',
+    fontWeight: '600',
+  },
+  devSection: {
+    gap: 10,
+  },
+  devSectionTitle: {
+    fontSize: 13,
+    color: '#888',
+    textAlign: 'center',
+    marginBottom: 2,
     fontWeight: '600',
   },
   devButton: {

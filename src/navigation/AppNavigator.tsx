@@ -5,14 +5,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useStore, OPERATOR_USER_ID } from '../store/useStore';
+import { useStore } from '../store/useStore';
 import LoginScreen from '../screens/LoginScreen';
-import VerificationScreen from '../screens/VerificationScreen';
 import OrganizationSetupScreen from '../screens/OrganizationSetupScreen';
 import HomeScreen from '../screens/HomeScreen';
 import PostScreen from '../screens/PostScreen';
 import AdminScreen from '../screens/AdminScreen';
-import OperatorScreen from '../screens/OperatorScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import TermsScreen from '../screens/TermsScreen';
 import PrivacyScreen from '../screens/PrivacyScreen';
@@ -25,8 +23,6 @@ function MainTabs() {
   const user = useStore((state) => state.user);
   const currentOrganization = useStore((state) => state.currentOrganization);
   
-  // 運営者かどうか
-  const isOperator = user?.id === OPERATOR_USER_ID || user?.role === 'operator';
   // 組織管理者かどうか
   const isOrgAdmin = user?.id === currentOrganization?.adminUserId || user?.role === 'org_admin';
 
@@ -74,23 +70,6 @@ function MainTabs() {
           ),
         }}
       />
-      {/* 運営者用タブ（本人確認審査） */}
-      {isOperator && (
-        <Tab.Screen
-          name="Operator"
-          component={OperatorScreen}
-          options={{
-            tabBarLabel: '運営',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons 
-                name={focused ? 'shield-checkmark' : 'shield-checkmark-outline'} 
-                size={24} 
-                color={color} 
-              />
-            ),
-          }}
-        />
-      )}
       {/* 組織管理者用タブ（意見への返答） */}
       {isOrgAdmin && (
         <Tab.Screen
@@ -143,9 +122,8 @@ export default function AppNavigator() {
     );
   }
 
-  // 組織未選択の場合（運営者は組織選択不要）
-  const isOperator = user.id === OPERATOR_USER_ID || user.role === 'operator';
-  if (!isOperator && !user.organizationId && !user.pendingOrganizationId) {
+  // 組織未選択の場合
+  if (!user.organizationId) {
     return (
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -157,20 +135,7 @@ export default function AppNavigator() {
     );
   }
 
-  // ユーザーが承認されていない場合（本人確認待ち）
-  if (!isOperator && user.status !== 'approved') {
-    return (
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Verification" component={VerificationScreen} />
-          <Stack.Screen name="Terms" component={TermsScreen} />
-          <Stack.Screen name="Privacy" component={PrivacyScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    );
-  }
-
-  // 承認済みユーザー or 運営者
+  // 組織参加済みユーザー
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>

@@ -67,7 +67,7 @@ export default function HomeScreen() {
 
   const sections = [
     { title: '🗳️ 投票中の意見', data: pendingOpinions, type: 'pending' },
-    { title: '� 審議中の意見', data: submittedOpinions, type: 'submitted' },
+    { title: '📋 審議中の意見', data: submittedOpinions, type: 'submitted' },
     { title: '✅ 採用された意見', data: resolvedOpinions, type: 'resolved' },
     { title: '❌ 却下・期限切れ', data: rejectedOpinions, type: 'rejected' },
   ].filter((section) => section.data.length > 0);
@@ -361,6 +361,35 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        <View style={styles.filterContainer}>
+          <Text style={styles.controlLabel}>表示:</Text>
+          <View style={styles.sortButtons}>
+            <TouchableOpacity
+              style={[styles.sortButton, filterBy === 'all' && styles.sortButtonActive]}
+              onPress={() => setFilterBy('all')}
+            >
+              <Text style={[styles.sortButtonText, filterBy === 'all' && styles.sortButtonTextActive]}>すべて</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortButton, filterBy === 'pending' && styles.sortButtonActive]}
+              onPress={() => setFilterBy('pending')}
+            >
+              <Text style={[styles.sortButtonText, filterBy === 'pending' && styles.sortButtonTextActive]}>投票中</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortButton, filterBy === 'submitted' && styles.sortButtonActive]}
+              onPress={() => setFilterBy('submitted')}
+            >
+              <Text style={[styles.sortButtonText, filterBy === 'submitted' && styles.sortButtonTextActive]}>審議中</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortButton, filterBy === 'resolved' && styles.sortButtonActive]}
+              onPress={() => setFilterBy('resolved')}
+            >
+              <Text style={[styles.sortButtonText, filterBy === 'resolved' && styles.sortButtonTextActive]}>採用済み</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       {opinions.length === 0 ? (
@@ -614,6 +643,11 @@ const styles = StyleSheet.create({
   sortContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
   },
   controlLabel: {
     fontSize: 13,

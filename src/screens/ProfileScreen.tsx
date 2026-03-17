@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useStore } from '../store/useStore';
-import { signOut } from '../services/authService';
+import { signOut, deleteCurrentAccount } from '../services/authService';
 
 export default function ProfileScreen() {
   const { user, setUser } = useStore();
@@ -30,6 +30,34 @@ export default function ProfileScreen() {
               setUser(null);
             } catch (error) {
               Alert.alert('エラー', 'ログアウトに失敗しました');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'アカウント削除',
+      'アカウントを削除しますか？\nこの操作は取り消せません。',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '削除する',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteCurrentAccount();
+              setUser(null);
+              Alert.alert('完了', 'アカウントを削除しました');
+            } catch (error: any) {
+              const code = String(error?.code || '');
+              if (code.includes('auth/requires-recent-login')) {
+                Alert.alert('再認証が必要です', 'セキュリティのため、再ログイン後にもう一度お試しください。');
+                return;
+              }
+              Alert.alert('エラー', 'アカウント削除に失敗しました');
             }
           },
         },
@@ -112,6 +140,9 @@ export default function ProfileScreen() {
       <View style={styles.actions}>
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Text style={styles.signOutButtonText}>ログアウト</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccount}>
+          <Text style={styles.deleteAccountButtonText}>アカウントを削除</Text>
         </TouchableOpacity>
       </View>
 
@@ -229,6 +260,20 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 16,
     fontWeight: '600',
+  },
+  deleteAccountButton: {
+    marginTop: 12,
+    backgroundColor: '#fff5f5',
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  deleteAccountButtonText: {
+    color: '#C62828',
+    fontSize: 15,
+    fontWeight: '700',
   },
   legalSection: {
     marginTop: 24,

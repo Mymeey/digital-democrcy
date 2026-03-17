@@ -25,6 +25,8 @@ export default function AdminScreen() {
     rejectOpinion,
     loadOpinions,
     loadOrganizationMembers,
+    setVoteThreshold,
+    setOpposeThreshold,
     isOrgAdmin,
   } = useStore();
   
@@ -32,6 +34,8 @@ export default function AdminScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOpinion, setSelectedOpinion] = useState<Opinion | null>(null);
   const [responseText, setResponseText] = useState('');
+  const [voteThresholdInput, setVoteThresholdInput] = useState('');
+  const [opposeThresholdInput, setOpposeThresholdInput] = useState('');
 
   const isAdmin = isOrgAdmin();
 
@@ -41,6 +45,12 @@ export default function AdminScreen() {
       loadOrganizationMembers();
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!currentOrganization) return;
+    setVoteThresholdInput(String(currentOrganization.voteThreshold));
+    setOpposeThresholdInput(String(currentOrganization.opposeThreshold));
+  }, [currentOrganization?.id, currentOrganization?.voteThreshold, currentOrganization?.opposeThreshold]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -134,6 +144,25 @@ export default function AdminScreen() {
   const formatJoinDate = (timestamp?: number) => {
     if (!timestamp) return '不明';
     return new Date(timestamp).toLocaleDateString('ja-JP');
+  };
+
+  const handleSaveThresholds = async () => {
+    const vote = Number(voteThresholdInput);
+    const oppose = Number(opposeThresholdInput);
+
+    if (!Number.isFinite(vote) || !Number.isFinite(oppose)) {
+      Alert.alert('入力エラー', '数値を入力してください');
+      return;
+    }
+
+    if (vote < 1 || vote > 100 || oppose < 1 || oppose > 100) {
+      Alert.alert('入力エラー', '閾値は1〜100の範囲で入力してください');
+      return;
+    }
+
+    await setVoteThreshold(vote);
+    await setOpposeThreshold(oppose);
+    Alert.alert('保存完了', '提出・却下の基準を更新しました');
   };
 
   return (
@@ -230,7 +259,7 @@ export default function AdminScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>👥 メンバー名簿</Text>
               <Text style={styles.sectionDescription}>
-                承認済み: {approvedMembers.length}名 / 申請中: {pendingMembers.length}名
+                参加中: {approvedMembers.length}名
               </Text>
             </View>
 
@@ -274,7 +303,7 @@ export default function AdminScreen() {
                 {/* 申請中メンバー */}
                 {pendingMembers.length > 0 && (
                   <View style={styles.memberSection}>
-                    <Text style={styles.memberSectionTitle}>⏳ 承認待ち ({pendingMembers.length}名)</Text>
+                    <Text style={styles.memberSectionTitle}>⏳ 参加処理中 ({pendingMembers.length}名)</Text>
                     {pendingMembers.map((member) => (
                       <View key={member.id} style={[styles.memberCard, styles.pendingMemberCard]}>
                         <View style={[styles.memberAvatar, styles.pendingAvatar]}>
@@ -286,7 +315,7 @@ export default function AdminScreen() {
                           <Text style={styles.memberName}>{member.realName || member.name}</Text>
                           <Text style={styles.memberEmail}>{member.email}</Text>
                           <Text style={styles.pendingText}>
-                            本人確認待ち（運営者が審査中）
+                            参加処理中
                           </Text>
                         </View>
                       </View>
@@ -340,6 +369,37 @@ export default function AdminScreen() {
               <Text style={styles.orgInfoHint}>
                 この割合以上の反対票で意見が却下されます
               </Text>
+            </View>
+
+            <View style={styles.orgInfoCard}>
+              <Text style={styles.orgInfoLabel}>提出・却下ルールを調整</Text>
+              <View style={styles.thresholdRow}>
+                <View style={styles.thresholdBlock}>
+                  <Text style={styles.thresholdLabel}>提出可能（賛成％）</Text>
+                  <TextInput
+                    style={styles.thresholdInput}
+                    keyboardType="number-pad"
+                    value={voteThresholdInput}
+                    onChangeText={setVoteThresholdInput}
+                    maxLength={3}
+                    placeholder="15"
+                  />
+                </View>
+                <View style={styles.thresholdBlock}>
+                  <Text style={styles.thresholdLabel}>却下可能（反対％）</Text>
+                  <TextInput
+                    style={styles.thresholdInput}
+                    keyboardType="number-pad"
+                    value={opposeThresholdInput}
+                    onChangeText={setOpposeThresholdInput}
+                    maxLength={3}
+                    placeholder="10"
+                  />
+                </View>
+              </View>
+              <TouchableOpacity style={styles.saveThresholdButton} onPress={handleSaveThresholds}>
+                <Text style={styles.saveThresholdButtonText}>ルールを保存</Text>
+              </TouchableOpacity>
             </View>
           </>
         )}
@@ -618,6 +678,42 @@ const styles = StyleSheet.create({
   codeButtonText: {
     fontSize: 14,
     color: '#333',
+  },
+  thresholdRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  thresholdBlock: {
+    flex: 1,
+  },
+  thresholdLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 6,
+  },
+  thresholdInput: {
+    backgroundColor: '#F7F9FC',
+    borderWidth: 1,
+    borderColor: '#D6E0F5',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A3D8F',
+  },
+  saveThresholdButton: {
+    marginTop: 12,
+    backgroundColor: '#0A4FD9',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  saveThresholdButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   modalContainer: {
     flex: 1,

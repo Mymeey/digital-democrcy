@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useStore } from '../store/useStore';
+import BrandGlyph from '../components/BrandGlyph';
 
 export default function OrganizationSetupScreen() {
   const {
@@ -25,19 +26,25 @@ export default function OrganizationSetupScreen() {
   const [mode, setMode] = useState<'select' | 'create' | 'join'>('select');
   const [orgName, setOrgName] = useState('');
   const [orgCode, setOrgCode] = useState('');
+  const [fullName, setFullName] = useState(user?.realName || '');
+  const [joinAsDemoAdmin, setJoinAsDemoAdmin] = useState(false);
 
   useEffect(() => {
     loadOrganizations();
   }, []);
 
   const handleCreateOrganization = async () => {
+    if (!fullName.trim()) {
+      Alert.alert('エラー', 'フルネームを入力してください');
+      return;
+    }
     if (!orgName.trim()) {
       Alert.alert('エラー', '組織名を入力してください');
       return;
     }
 
     try {
-      const org = await createOrganization(orgName.trim());
+      const org = await createOrganization(orgName.trim(), fullName.trim());
       Alert.alert(
         '組織を作成しました',
         `組織コード: ${org.code}\n\nこのコードを組織メンバーに共有してください。`,
@@ -49,17 +56,24 @@ export default function OrganizationSetupScreen() {
   };
 
   const handleJoinOrganization = async () => {
+    if (!fullName.trim()) {
+      Alert.alert('エラー', 'フルネームを入力してください');
+      return;
+    }
     if (!orgCode.trim()) {
       Alert.alert('エラー', '組織コードを入力してください');
       return;
     }
 
-    const success = await joinOrganization(orgCode.trim().toUpperCase());
+    const normalizedCode = orgCode.trim().toUpperCase();
+    const success = await joinOrganization(normalizedCode, fullName.trim(), joinAsDemoAdmin);
     
     if (success) {
       Alert.alert(
-        '参加申請完了',
-        '本人確認書類を提出してください。運営者の承認後、組織に参加できます。',
+        '参加完了',
+        joinAsDemoAdmin && normalizedCode === 'REVIEW01'
+          ? '審査用デモ組織に管理者として参加しました。管理タブから審議・閾値調整などを確認できます。'
+          : '組織に参加しました。ホーム画面をご利用いただけます。',
         [{ text: 'OK' }]
       );
     } else {
@@ -73,7 +87,7 @@ export default function OrganizationSetupScreen() {
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <Text style={styles.headerIcon}>🏢</Text>
+            <BrandGlyph variant="core" size={72} />
             <Text style={styles.headerTitle}>組織設定</Text>
             <Text style={styles.headerSubtitle}>
               組織を作成するか、既存の組織に参加してください
@@ -84,7 +98,9 @@ export default function OrganizationSetupScreen() {
             style={styles.optionCard}
             onPress={() => setMode('create')}
           >
-            <Text style={styles.optionIcon}>➕</Text>
+            <View style={styles.optionGlyphWrap}>
+              <BrandGlyph variant="create" size={46} />
+            </View>
             <View style={styles.optionContent}>
               <Text style={styles.optionTitle}>新しい組織を作成</Text>
               <Text style={styles.optionDescription}>
@@ -97,7 +113,9 @@ export default function OrganizationSetupScreen() {
             style={styles.optionCard}
             onPress={() => setMode('join')}
           >
-            <Text style={styles.optionIcon}>🔗</Text>
+            <View style={styles.optionGlyphWrap}>
+              <BrandGlyph variant="join" size={46} />
+            </View>
             <View style={styles.optionContent}>
               <Text style={styles.optionTitle}>組織に参加</Text>
               <Text style={styles.optionDescription}>
@@ -107,7 +125,10 @@ export default function OrganizationSetupScreen() {
           </TouchableOpacity>
 
           <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>💡 組織とは？</Text>
+            <View style={styles.infoHeader}>
+              <BrandGlyph variant="info" size={32} />
+              <Text style={styles.infoTitle}>組織とは？</Text>
+            </View>
             <Text style={styles.infoText}>
               会社、団体、コミュニティなど、メンバーが意見を交換するグループです。{'\n\n'}
               <Text style={styles.infoBold}>組織管理者:</Text> 提出された意見に対して返答します{'\n'}
@@ -136,8 +157,19 @@ export default function OrganizationSetupScreen() {
             </TouchableOpacity>
 
             <View style={styles.formHeader}>
-              <Text style={styles.formIcon}>🏗️</Text>
+              <BrandGlyph variant="create" size={72} />
               <Text style={styles.formTitle}>新しい組織を作成</Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>フルネーム</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="例: 山田 太郎"
+                value={fullName}
+                onChangeText={setFullName}
+                autoCapitalize="words"
+              />
             </View>
 
             <View style={styles.inputGroup}>
@@ -154,6 +186,7 @@ export default function OrganizationSetupScreen() {
             <View style={styles.noteBox}>
               <Text style={styles.noteText}>
                 ✓ あなたは組織の管理者になります{'\n'}
+                ✓ 名簿には入力したフルネームで表示されます{'\n'}
                 ✓ 参加用の組織コードが自動生成されます{'\n'}
                 ✓ メンバーからの意見に返答する責任があります
               </Text>
@@ -162,7 +195,7 @@ export default function OrganizationSetupScreen() {
             <TouchableOpacity
               style={[styles.submitButton, !orgName.trim() && styles.submitButtonDisabled]}
               onPress={handleCreateOrganization}
-              disabled={!orgName.trim() || isLoading}
+              disabled={!fullName.trim() || !orgName.trim() || isLoading}
             >
               <Text style={styles.submitButtonText}>
                 {isLoading ? '作成中...' : '組織を作成'}
@@ -190,8 +223,19 @@ export default function OrganizationSetupScreen() {
           </TouchableOpacity>
 
           <View style={styles.formHeader}>
-            <Text style={styles.formIcon}>🔗</Text>
+            <BrandGlyph variant="join" size={72} />
             <Text style={styles.formTitle}>組織に参加</Text>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>フルネーム</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="例: 山田 太郎"
+              value={fullName}
+              onChangeText={setFullName}
+              autoCapitalize="words"
+            />
           </View>
 
           <View style={styles.inputGroup}>
@@ -209,23 +253,33 @@ export default function OrganizationSetupScreen() {
             <Text style={styles.inputHint}>
               組織の管理者から共有された8文字のコードを入力してください
             </Text>
+
+            {orgCode.trim().toUpperCase() === 'REVIEW01' && (
+              <TouchableOpacity
+                style={[styles.demoRoleButton, joinAsDemoAdmin && styles.demoRoleButtonActive]}
+                onPress={() => setJoinAsDemoAdmin((v) => !v)}
+              >
+                <Text style={[styles.demoRoleButtonText, joinAsDemoAdmin && styles.demoRoleButtonTextActive]}>
+                  {joinAsDemoAdmin ? '管理者デモ参加: ON' : '管理者デモ参加: OFF（メンバー）'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.noteBox}>
             <Text style={styles.noteText}>
-              ✓ 参加後、本人確認が必要です{'\n'}
-              ✓ 運営者の承認後にメンバーになれます{'\n'}
-              ✓ 審査には数日かかる場合があります
+              ✓ 組織コードが一致するとすぐに参加できます{'\n'}
+              ✓ 名簿には入力したフルネームで表示されます
             </Text>
           </View>
 
           <TouchableOpacity
-            style={[styles.submitButton, orgCode.length !== 8 && styles.submitButtonDisabled]}
+            style={[styles.submitButton, (orgCode.length !== 8 || !fullName.trim()) && styles.submitButtonDisabled]}
             onPress={handleJoinOrganization}
-            disabled={orgCode.length !== 8 || isLoading}
+            disabled={orgCode.length !== 8 || !fullName.trim() || isLoading}
           >
             <Text style={styles.submitButtonText}>
-              {isLoading ? '処理中...' : '参加申請'}
+              {isLoading ? '処理中...' : '組織に参加'}
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -251,14 +305,11 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     marginTop: 20,
   },
-  headerIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#333',
+    marginTop: 16,
     marginBottom: 8,
   },
   headerSubtitle: {
@@ -279,8 +330,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  optionIcon: {
-    fontSize: 40,
+  optionGlyphWrap: {
     marginRight: 16,
   },
   optionContent: {
@@ -306,6 +356,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#1976D2',
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 8,
   },
   infoText: {
@@ -327,14 +382,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
-  formIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
   formTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
+    marginTop: 16,
   },
   inputGroup: {
     marginBottom: 24,
@@ -363,6 +415,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 8,
+  },
+  demoRoleButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#F4F7FF',
+    borderWidth: 1,
+    borderColor: '#D6E0F5',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  demoRoleButtonActive: {
+    backgroundColor: '#0A4FD9',
+    borderColor: '#0A4FD9',
+  },
+  demoRoleButtonText: {
+    fontSize: 12,
+    color: '#33508A',
+    fontWeight: '600',
+  },
+  demoRoleButtonTextActive: {
+    color: '#fff',
   },
   noteBox: {
     backgroundColor: '#F0F8FF',

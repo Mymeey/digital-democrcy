@@ -1,6 +1,13 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { getFirebaseAuth, db, isExpoGo } from '../config/firebase';
+import * as Crypto from 'expo-crypto';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import {
+  getFirebaseAuth,
+  db,
+  isExpoGo,
+  isFirebaseConfigured,
+  firebaseConfigMissingKeys,
+} from '../config/firebase';
 import { User } from '../types';
 
 // ID生成関数
@@ -8,14 +15,21 @@ const generateId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 15);
 };
 
+// Apple Sign-In/Firebase連携で必要なnonce
+const generateNonce = (): string => {
+  const bytes = Crypto.getRandomBytes(16);
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
 // モックユーザー（Expo Goテスト用）
-// この ID を 'mock_user_001' に合わせることで運営者として動作
 const MOCK_USER: User = {
-  id: 'mock_user_001',
-  email: 'test@example.com',
-  name: 'テスト運営者',
-  authProvider: 'apple',
-  role: 'operator',
+  id: 'mock_member_001',
+  email: 'member@example.com',
+  name: 'テストユーザー',
+  authProvider: 'google',
+  role: 'member',
   status: 'approved',
   createdAt: Date.now(),
 };
@@ -33,19 +47,35 @@ export const signInWithApple = async (): Promise<User | null> => {
     return signInWithMock();
   }
 
+  if (!isFirebaseConfigured) {
+    throw new Error(`Firebase config is missing: ${firebaseConfigMissingKeys.join(', ')}`);
+  }
+
   try {
+    const rawNonce = generateNonce();
+    const hashedNonce = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      rawNonce
+    );
+
     const credential = await AppleAuthentication.signInAsync({
       requestedScopes: [
         AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
         AppleAuthentication.AppleAuthenticationScope.EMAIL,
       ],
+      nonce: hashedNonce,
     });
+
+    if (!credential.identityToken) {
+      throw new Error('Apple identity token is missing');
+    }
 
     // Firebase認証（動的インポート）
     const { signInWithCredential, OAuthProvider } = await import('firebase/auth');
     const provider = new OAuthProvider('apple.com');
     const firebaseCredential = provider.credential({
-      idToken: credential.identityToken!,
+      idToken: credential.identityToken,
+      rawNonce,
     });
     
     const auth = await getFirebaseAuth();
@@ -81,6 +111,7 @@ export const signInWithApple = async (): Promise<User | null> => {
     if (error.code === 'ERR_REQUEST_CANCELED') {
       return null;
     }
+    console.error('Apple Sign-In Error:', error?.code || error?.message || error);
     throw error;
   }
 };
@@ -90,6 +121,14 @@ export const signInWithGoogleIdToken = async (idToken: string): Promise<User | n
   // Expo Goではモック認証を使用
   if (isExpoGo) {
     return signInWithMock();
+  }
+
+  if (!isFirebaseConfigured) {
+    throw new Error(`Firebase config is missing: ${firebaseConfigMissingKeys.join(', ')}`);
+  }
+
+  if (!idToken?.trim()) {
+    throw new Error('Google idToken is empty');
   }
 
   try {
@@ -124,7 +163,7 @@ export const signInWithGoogleIdToken = async (idToken: string): Promise<User | n
     await setDoc(userRef, newUser);
     return newUser;
   } catch (error: any) {
-    console.error('Google Sign-In Error:', error);
+    console.error('Google Sign-In Error:', error?.code || error?.message || error);
     throw error;
   }
 };
@@ -145,6 +184,33 @@ export const signOut = async (): Promise<void> => {
     }
   } catch (error) {
     console.error('Sign Out Error:', error);
+    throw error;
+  }
+};
+
+// 現在のアカウントを削除
+export const deleteCurrentAccount = async (): Promise<void> => {
+  // Expo Goではモック認証なので何もしない
+  if (isExpoGo) {
+    console.log('Mock account delete for Expo Go');
+    return;
+  }
+
+  const auth = await getFirebaseAuth();
+  const firebaseUser = auth?.currentUser;
+
+  if (!auth || !firebaseUser) {
+    throw new Error('現在のログイン情報を取得できません');
+  }
+
+  try {
+    // Firestore上のユーザー情報を先に削除
+    await deleteDoc(doc(db, 'users', firebaseUser.uid));
+
+    const { deleteUser } = await import('firebase/auth');
+    await deleteUser(firebaseUser);
+  } catch (error: any) {
+    console.error('Delete Account Error:', error?.code || error?.message || error);
     throw error;
   }
 };

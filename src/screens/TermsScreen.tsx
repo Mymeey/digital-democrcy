@@ -9,12 +9,32 @@ import {
 import { useNavigation } from '@react-navigation/native';
 
 export default function TermsScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    const routeNames: string[] = navigation.getState?.()?.routeNames || [];
+    if (routeNames.includes('Main')) {
+      navigation.navigate('Main');
+      return;
+    }
+    if (routeNames.includes('OrganizationSetup')) {
+      navigation.navigate('OrganizationSetup');
+      return;
+    }
+    if (routeNames.includes('Login')) {
+      navigation.navigate('Login');
+    }
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Text style={styles.backText}>← 戻る</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>利用規約</Text>

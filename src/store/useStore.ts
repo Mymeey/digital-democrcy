@@ -42,6 +42,83 @@ const generateOrgCode = (): string => {
   return code;
 };
 
+const REVIEW_ORG_ID = 'review_org_001';
+const REVIEW_ORG_CODE = 'REVIEW01';
+const REVIEW_ORG_NAME = '審査用デモ組織';
+
+const buildReviewOrg = (): Organization => ({
+  id: REVIEW_ORG_ID,
+  name: REVIEW_ORG_NAME,
+  code: REVIEW_ORG_CODE,
+  voteThreshold: 15,
+  opposeThreshold: 10,
+  adminUserId: 'review_admin_001',
+  totalMembers: 120,
+  createdAt: Date.now(),
+});
+
+const buildMockOpinions = (): Opinion[] => {
+  const now = Date.now();
+  return [
+    {
+      id: 'mock_opinion_001',
+      title: 'リモートワーク制度の拡充を求めます',
+      description:
+        '週3日以上のリモートワークを選択できる制度を導入してほしいです。通勤時間の削減により生産性が上がると思います。',
+      authorId: 'mock_member_001',
+      authorName: 'テストメンバー',
+      votes: [
+        'member_a', 'member_b', 'member_c', 'member_d', 'member_e',
+        'member_f', 'member_g', 'member_h', 'member_i', 'member_j',
+        'member_k', 'member_l', 'member_m', 'member_n', 'member_o',
+      ],
+      opposeVotes: ['member_z'],
+      status: 'pending',
+      createdAt: now - 2 * 24 * 60 * 60 * 1000,
+      votingDeadline: now + 5 * 24 * 60 * 60 * 1000,
+    },
+    {
+      id: 'mock_opinion_002',
+      title: '社内カフェテリアのメニュー改善',
+      description: 'ヘルシーな選択肢を増やしてほしいです。特に野菜メニューが少ないと感じています。',
+      authorId: 'mock_member_002',
+      authorName: '匿名メンバー',
+      votes: ['member_a', 'member_b', 'member_c'],
+      opposeVotes: [],
+      status: 'pending',
+      createdAt: now - 1 * 24 * 60 * 60 * 1000,
+      votingDeadline: now + 6 * 24 * 60 * 60 * 1000,
+    },
+    {
+      id: 'mock_opinion_003',
+      title: '育児休暇取得促進の取り組みを',
+      description: '男性も取得しやすい環境づくりと、復帰後のサポート体制の整備をお願いします。',
+      authorId: 'mock_member_003',
+      authorName: '匿名メンバー',
+      votes: Array.from({ length: 20 }, (_, i) => `member_${i}`),
+      opposeVotes: [],
+      status: 'submitted',
+      createdAt: now - 10 * 24 * 60 * 60 * 1000,
+      votingDeadline: now - 3 * 24 * 60 * 60 * 1000,
+      responseDeadline: now + 4 * 24 * 60 * 60 * 1000,
+    },
+    {
+      id: 'mock_opinion_004',
+      title: '社内勉強会の開催について',
+      description: '月1回の技術共有会を正式な業務時間内に実施してほしいです。',
+      authorId: 'mock_member_004',
+      authorName: '匿名メンバー',
+      votes: Array.from({ length: 18 }, (_, i) => `member_vote_${i}`),
+      opposeVotes: [],
+      status: 'resolved',
+      createdAt: now - 30 * 24 * 60 * 60 * 1000,
+      votingDeadline: now - 23 * 24 * 60 * 60 * 1000,
+      response:
+        '毎月第3金曜日の15:00〜16:30に実施することが決定しました。参加は任意ですが、業務時間内に開催します。',
+    },
+  ];
+};
+
 interface AppStore {
   // 状態
   user: User | null;
@@ -58,8 +135,8 @@ interface AppStore {
   updateUserStatus: (userId: string, status: 'approved' | 'rejected', reason?: string) => Promise<void>;
   
   // 組織関連
-  createOrganization: (name: string) => Promise<Organization>;
-  joinOrganization: (code: string) => Promise<boolean>;
+  createOrganization: (name: string, realName: string) => Promise<Organization>;
+  joinOrganization: (code: string, realName: string, asOrgAdmin?: boolean) => Promise<boolean>;
   loadOrganizations: () => Promise<void>;
   setCurrentOrganization: (org: Organization | null) => void;
   loadOrganizationMembers: () => Promise<void>;  // メンバー一覧読み込み
@@ -84,6 +161,7 @@ interface AppStore {
   // 設定関連
   loadSettings: () => Promise<void>;
   setVoteThreshold: (threshold: number) => Promise<void>;
+  setOpposeThreshold: (threshold: number) => Promise<void>;
   
   // 画像アップロード
   uploadImage: (uri: string, path: string) => Promise<string>;
@@ -120,7 +198,16 @@ export const useStore = create<AppStore>((set, get) => ({
   organizationMembers: [],
   isLoading: false,
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    if (user && isExpoGo && user.organizationId) {
+      // Expo Goモードでは組織IDがあれば自動的にカレント組織をセット
+      const { organizations } = get();
+      const org = organizations.find((o) => o.id === user.organizationId);
+      set({ user, currentOrganization: org || null, settings: org || get().settings });
+    } else {
+      set({ user });
+    }
+  },
   
   // 運営者かどうかチェック
   isOperator: () => {
@@ -145,7 +232,7 @@ export const useStore = create<AppStore>((set, get) => ({
   },
   
   // 組織を作成（組織管理者として）
-  createOrganization: async (name: string): Promise<Organization> => {
+  createOrganization: async (name: string, realName: string): Promise<Organization> => {
     const { user, organizations } = get();
     if (!user) throw new Error('ログインが必要です');
 
@@ -163,6 +250,7 @@ export const useStore = create<AppStore>((set, get) => ({
     // ユーザーを組織管理者として更新
     const updatedUser: User = {
       ...user,
+      realName,
       role: 'org_admin',
       organizationId: newOrg.id,
       status: 'approved',  // 組織作成者は自動承認
@@ -188,8 +276,8 @@ export const useStore = create<AppStore>((set, get) => ({
     return newOrg;
   },
 
-  // 組織コードで参加申請
-  joinOrganization: async (code: string): Promise<boolean> => {
+  // 組織コードで参加
+  joinOrganization: async (code: string, realName: string, asOrgAdmin = false): Promise<boolean> => {
     const { user, organizations } = get();
     if (!user) return false;
 
@@ -214,26 +302,41 @@ export const useStore = create<AppStore>((set, get) => ({
 
     if (!targetOrg) return false;
 
-    // ユーザーを更新（参加申請中）
+    const joinAsAdmin = asOrgAdmin && targetOrg.id === REVIEW_ORG_ID;
+
+    // ユーザーを更新（即時参加）
     const updatedUser: User = {
       ...user,
-      role: 'member',
-      pendingOrganizationId: targetOrg.id,
-      status: 'pending',
+      realName,
+      role: joinAsAdmin ? 'org_admin' : 'member',
+      organizationId: targetOrg.id,
+      status: 'approved',
+      approvedAt: Date.now(),
+    };
+
+    const updatedOrg: Organization = {
+      ...targetOrg,
+      totalMembers: (targetOrg.totalMembers || 0) + 1,
     };
 
     if (!isExpoGo) {
       try {
         await setDoc(doc(db, 'users', user.id), updatedUser);
+        await setDoc(doc(db, 'organizations', targetOrg.id), updatedOrg, { merge: true });
       } catch (error) {
         console.error('Failed to update user:', error);
       }
     }
 
+    const orgExistsLocally = organizations.some((o) => o.id === updatedOrg.id);
+
     set({
       user: updatedUser,
-      currentOrganization: targetOrg,
-      settings: targetOrg,
+      organizations: orgExistsLocally
+        ? organizations.map((o) => (o.id === updatedOrg.id ? updatedOrg : o))
+        : [...organizations, updatedOrg],
+      currentOrganization: updatedOrg,
+      settings: updatedOrg,
     });
 
     return true;
@@ -241,6 +344,7 @@ export const useStore = create<AppStore>((set, get) => ({
 
   // 組織一覧を読み込み
   loadOrganizations: async () => {
+    const reviewOrg = buildReviewOrg();
     if (isExpoGo) {
       // Expo Goモードではサンプル組織を追加
       const sampleOrg: Organization = {
@@ -253,7 +357,7 @@ export const useStore = create<AppStore>((set, get) => ({
         totalMembers: 100,
         createdAt: Date.now(),
       };
-      set({ organizations: [sampleOrg] });
+      set({ organizations: [sampleOrg, reviewOrg] });
       return;
     }
 
@@ -263,6 +367,9 @@ export const useStore = create<AppStore>((set, get) => ({
       snapshot.forEach((doc) => {
         orgs.push(doc.data() as Organization);
       });
+      if (!orgs.some((org) => org.id === reviewOrg.id || org.code === reviewOrg.code)) {
+        orgs.push(reviewOrg);
+      }
       set({ organizations: orgs });
     } catch (error) {
       console.error('Failed to load organizations:', error);
@@ -272,6 +379,49 @@ export const useStore = create<AppStore>((set, get) => ({
   // 組織メンバー一覧を読み込み
   loadOrganizationMembers: async () => {
     const { currentOrganization, user } = get();
+
+    if (currentOrganization?.id === REVIEW_ORG_ID) {
+      const reviewMembers: User[] = [
+        {
+          id: 'review_admin_001',
+          email: 'review-admin@example.com',
+          name: 'review_admin',
+          realName: '審査デモ 管理者',
+          authProvider: 'google',
+          role: 'org_admin',
+          status: 'approved',
+          organizationId: REVIEW_ORG_ID,
+          createdAt: Date.now() - 40 * 24 * 60 * 60 * 1000,
+          approvedAt: Date.now() - 39 * 24 * 60 * 60 * 1000,
+        },
+        {
+          id: 'review_member_001',
+          email: 'review-member1@example.com',
+          name: 'review_member_1',
+          realName: '審査デモ 太郎',
+          authProvider: 'google',
+          role: 'member',
+          status: 'approved',
+          organizationId: REVIEW_ORG_ID,
+          createdAt: Date.now() - 20 * 24 * 60 * 60 * 1000,
+          approvedAt: Date.now() - 19 * 24 * 60 * 60 * 1000,
+        },
+      ];
+
+      if (user?.organizationId === REVIEW_ORG_ID) {
+        const selfMember: User = {
+          ...user,
+          realName: user.realName || user.name,
+          role: user.id === 'review_admin_001' ? 'org_admin' : user.role,
+          status: 'approved',
+          approvedAt: user.approvedAt || Date.now(),
+        };
+        set({ organizationMembers: [selfMember, ...reviewMembers.filter((m) => m.id !== selfMember.id)] });
+      } else {
+        set({ organizationMembers: reviewMembers });
+      }
+      return;
+    }
     
     if (isExpoGo) {
       // Expo Goモードではサンプルメンバーを追加
@@ -335,17 +485,6 @@ export const useStore = create<AppStore>((set, get) => ({
           organizationId: 'sample_org_001',
           createdAt: Date.now() - 5 * 24 * 60 * 60 * 1000,
           approvedAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
-        },
-        {
-          id: 'member_005',
-          email: 'pending@example.com',
-          name: 'akane_i',
-          realName: '伊藤 あかね',
-          authProvider: 'google',
-          role: 'member',
-          status: 'pending',
-          pendingOrganizationId: 'sample_org_001',
-          createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
         },
       ];
       set({ organizationMembers: sampleMembers });
@@ -520,9 +659,12 @@ export const useStore = create<AppStore>((set, get) => ({
 
   // 意見を読み込み
   loadOpinions: async () => {
-    // Expo Goモードではローカルデータを使用
-    if (isExpoGo) {
-      console.log('Expo Go mode - using local opinions');
+    const { currentOrganization } = get();
+
+    // Expo Goまたは審査用デモ組織ではモックデータを使用
+    if (isExpoGo || currentOrganization?.id === REVIEW_ORG_ID) {
+      console.log('Using mock opinions for review/testing');
+      set({ opinions: buildMockOpinions() });
       return;
     }
     try {
@@ -909,19 +1051,65 @@ export const useStore = create<AppStore>((set, get) => ({
     }
   },
 
-  // 投票閾値を設定
+  // 投票閾値を設定（組織単位）
   setVoteThreshold: async (threshold: number) => {
-    const { settings } = get();
-    const updatedSettings = { ...settings, voteThreshold: threshold };
+    const { currentOrganization, organizations } = get();
+    if (!currentOrganization) return;
+
+    const normalized = Math.max(1, Math.min(100, Math.round(threshold)));
+    const updatedOrganization: Organization = {
+      ...currentOrganization,
+      voteThreshold: normalized,
+    };
     
     // Expo Goモードではローカルのみ更新
     if (!isExpoGo) {
       try {
-        await setDoc(doc(db, 'settings', 'default'), updatedSettings);
+        await updateDoc(doc(db, 'organizations', currentOrganization.id), {
+          voteThreshold: normalized,
+        });
       } catch (error) {
         console.error('Failed to save settings to Firestore:', error);
       }
     }
-    set({ settings: updatedSettings });
+
+    set({
+      organizations: organizations.map((org) =>
+        org.id === updatedOrganization.id ? updatedOrganization : org
+      ),
+      currentOrganization: updatedOrganization,
+      settings: updatedOrganization,
+    });
+  },
+
+  // 反対閾値を設定（組織単位）
+  setOpposeThreshold: async (threshold: number) => {
+    const { currentOrganization, organizations } = get();
+    if (!currentOrganization) return;
+
+    const normalized = Math.max(1, Math.min(100, Math.round(threshold)));
+    const updatedOrganization: Organization = {
+      ...currentOrganization,
+      opposeThreshold: normalized,
+    };
+
+    // Expo Goモードではローカルのみ更新
+    if (!isExpoGo) {
+      try {
+        await updateDoc(doc(db, 'organizations', currentOrganization.id), {
+          opposeThreshold: normalized,
+        });
+      } catch (error) {
+        console.error('Failed to save oppose threshold to Firestore:', error);
+      }
+    }
+
+    set({
+      organizations: organizations.map((org) =>
+        org.id === updatedOrganization.id ? updatedOrganization : org
+      ),
+      currentOrganization: updatedOrganization,
+      settings: updatedOrganization,
+    });
   },
 }));

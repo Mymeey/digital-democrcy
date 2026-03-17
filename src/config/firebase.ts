@@ -15,7 +15,31 @@ const firebaseConfig = {
 };
 
 // Expo Goかどうかを判定
-export const isExpoGo = Constants.appOwnership === 'expo';
+// SDK 50+では appOwnership は非推奨のため executionEnvironment を優先使用
+export const isExpoGo =
+  Constants.executionEnvironment === 'storeClient' ||
+  Constants.appOwnership === 'expo';
+
+const requiredFirebaseKeys = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'storageBucket',
+  'messagingSenderId',
+  'appId',
+] as const;
+
+export const firebaseConfigMissingKeys = requiredFirebaseKeys.filter(
+  (key) => !firebaseConfig[key] || !firebaseConfig[key].trim()
+);
+
+export const isFirebaseConfigured = firebaseConfigMissingKeys.length === 0;
+
+if (!isExpoGo && !isFirebaseConfigured) {
+  console.error(
+    `Firebase env is missing: ${firebaseConfigMissingKeys.join(', ')}`
+  );
+}
 
 // Firebaseアプリの初期化（重複初期化を防ぐ）
 let app: FirebaseApp;
@@ -34,6 +58,12 @@ export const getFirebaseAuth = async (): Promise<Auth | null> => {
   if (isExpoGo) {
     console.log('Expo Go detected - using mock auth');
     return null;
+  }
+
+  if (!isFirebaseConfigured) {
+    throw new Error(
+      `Firebase configuration is incomplete: ${firebaseConfigMissingKeys.join(', ')}`
+    );
   }
   
   if (_auth) return _auth;
