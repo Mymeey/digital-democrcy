@@ -93,8 +93,8 @@ export const signInWithApple = async (): Promise<User | null> => {
   }
 };
 
-// Google IDトークンでサインイン（expo-auth-sessionから呼ばれる）
-export const signInWithGoogleIdToken = async (idToken: string): Promise<User | null> => {
+// Googleアクセストークンでサインイン（expo-auth-sessionから呼ばれる）
+export const signInWithGoogleAccessToken = async (accessToken: string): Promise<User | null> => {
   if (isExpoGo) {
     throw new Error('Google sign-in is not supported in Expo Go');
   }
@@ -103,14 +103,14 @@ export const signInWithGoogleIdToken = async (idToken: string): Promise<User | n
     throw new Error(`Firebase config is missing: ${firebaseConfigMissingKeys.join(', ')}`);
   }
 
-  if (!idToken?.trim()) {
-    throw new Error('Google idToken is empty');
+  if (!accessToken?.trim()) {
+    throw new Error('Google accessToken is empty');
   }
 
   try {
     // Firebase認証（動的インポート）
     const { signInWithCredential, GoogleAuthProvider } = await import('firebase/auth');
-    const googleCredential = GoogleAuthProvider.credential(idToken);
+    const googleCredential = GoogleAuthProvider.credential(null, accessToken);
     const auth = await getFirebaseAuth();
     if (!auth) throw new Error('Firebase Auth not available');
     

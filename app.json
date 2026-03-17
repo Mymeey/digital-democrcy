@@ -23,7 +23,14 @@
       "infoPlist": {
         "NSCameraUsageDescription": "身分証明書と顔写真の撮影に使用します",
         "NSPhotoLibraryUsageDescription": "身分証明書の画像を選択するために使用します",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.405652056926-fqaklbis1r8h5evflnvjvv6pa4tn1m00"
+            ]
+          }
+        ]
       }
     },
     "android": {

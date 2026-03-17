@@ -11,8 +11,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import { signInWithApple, signInWithGoogleIdToken } from '../services/authService';
+import { signInWithApple, signInWithGoogleAccessToken } from '../services/authService';
 import { useStore } from '../store/useStore';
 import { isExpoGo, isFirebaseConfigured, firebaseConfigMissingKeys } from '../config/firebase';
 
@@ -29,8 +30,7 @@ export default function LoginScreen() {
   const navigation = useNavigation<any>();
 
   const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  const isGoogleConfigured = Boolean(googleIosClientId || googleWebClientId);
+  const isGoogleConfigured = Boolean(googleIosClientId);
   const isAuthConfigured = isFirebaseConfigured && isGoogleConfigured;
 
   const getFriendlyAuthError = (error: any): string => {
@@ -40,7 +40,7 @@ export default function LoginScreen() {
       return `Firebase設定が不足しています: ${firebaseConfigMissingKeys.join(', ')}`;
     }
     if (!isGoogleConfigured) {
-      return 'Googleログイン設定が不足しています（EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID / EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID）。';
+      return 'Googleログイン設定が不足しています（EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID）。';
     }
     if (String(code).includes('auth/invalid-credential')) {
       return '認証設定に不一致があります。Google/Apple/Firebaseの連携設定をご確認ください。';
@@ -51,10 +51,16 @@ export default function LoginScreen() {
     return 'サインインに失敗しました。時間をおいて再度お試しください。';
   };
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+  const reversedClientId = googleIosClientId
+    ? googleIosClientId.split('.').reverse().join('.')
+    : undefined;
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: googleIosClientId || 'dummy',
-    webClientId: googleWebClientId || 'dummy',
     scopes: ['openid', 'profile', 'email'],
+    redirectUri: reversedClientId
+      ? makeRedirectUri({ scheme: reversedClientId })
+      : undefined,
   });
 
   useEffect(() => {
@@ -71,12 +77,12 @@ export default function LoginScreen() {
     if (!response) return;
 
     if (response.type === 'success') {
-      const idToken = response.params?.id_token || response.authentication?.idToken;
-      if (!idToken) {
+      const accessToken = response.authentication?.accessToken;
+      if (!accessToken) {
         Alert.alert('エラー', 'Google認証トークンを取得できませんでした');
         return;
       }
-      handleGoogleToken(idToken);
+      handleGoogleToken(accessToken);
       return;
     }
 
@@ -85,10 +91,10 @@ export default function LoginScreen() {
     }
   }, [response]);
 
-  const handleGoogleToken = async (idToken: string) => {
+  const handleGoogleToken = async (accessToken: string) => {
     setIsLoading(true);
     try {
-      const user = await signInWithGoogleIdToken(idToken);
+      const user = await signInWithGoogleAccessToken(accessToken);
       if (user) {
         setUser(user);
       }
@@ -127,7 +133,7 @@ export default function LoginScreen() {
           '設定エラー',
           !isFirebaseConfigured
             ? `Firebase設定が不足しています: ${firebaseConfigMissingKeys.join(', ')}`
-            : 'Googleログイン設定が不足しています（EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID / EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID）。'
+            : 'Googleログイン設定が不足しています（EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID）。'
         );
         return;
       }
